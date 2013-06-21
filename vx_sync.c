@@ -3,7 +3,7 @@
 */
 
 #include <vx_sync.h>
-#include <vxlog.h>
+#include <vx_log.h>
 
 vx_status_t vx_sync_create (vx_sync_t **sync, pthread_mutexattr_t *attr)
 {

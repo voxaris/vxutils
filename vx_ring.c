@@ -3,7 +3,7 @@
 */
 
 #include <vx_ring.h>
-#include <vxlog.h>
+#include <vx_log.h>
 
 vx_status_t vx_ring_create  (vx_ring_t **ring)
 {

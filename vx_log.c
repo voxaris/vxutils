@@ -2,7 +2,7 @@
  * Copyright 2008 - 2012 Ampersand, Inc.  All rights reserved.
 */
 
-#include "vxlog.h"
+#include "vx_log.h"
 
 
 FILE *logfp = NULL;

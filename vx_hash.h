@@ -16,21 +16,24 @@ extern "C"
 {
 #endif
 
+typedef enum hash_flag
+{
+   VX_HASH_COPY_KEYS = 1,
+   VX_HASH_FREE_VALUE = 1<<1
+} vx_hash_flag_t;
+
 /**
  * vx_hash_func_t: function prototype for hashing functions
- * @returns: an unsigned 32 bit integer hash value
  */
 typedef uint32_t (*vx_hash_func_t) (const void * key, size_t key_size);
 
 /**
  * vx_hash_free_func_t: function prototype for hash value memory free
- * @returns: void
  */
 typedef void (*vx_hash_free_func_t) (void * value);
 
 /**
  * vx_hash_cmp_func_t: function prototype for key cmp
- * @returns: 0 if two keys are equal, else returns non-zero
  */
 typedef int (*vx_hash_cmp_func_t) (const void * foo, const void * bar, size_t key_size);
 
@@ -74,12 +77,22 @@ void vx_hash_rehash (vx_hash_t *hash);
 /**
  *
  */
-vx_hash_t * vx_hash_new(size_t size, size_t key_size);
+vx_hash_t * vx_hash_new(void);
 
 /**
  *
  */
-void vx_hash_set_free (vx_hash_t *hash, vx_hash_free_func_t free_func);
+vx_hash_t * vx_hash_create (size_t size, size_t key_size, int flags);
+
+/**
+ *
+ */
+void vx_hash_set_hash_func (vx_hash_t *hash, vx_hash_func_t hash_func);
+
+/**
+ *
+ */
+void vx_hash_set_free_func (vx_hash_t *hash, vx_hash_free_func_t free_func);
 
 /**
  *

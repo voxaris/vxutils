@@ -55,7 +55,7 @@ LIBS      := $(LIBS) -L/usr/local/lib -lfftw3 -lm -lrt
 #
 # Compiler and Linker flags plus preprocessor defs
 #
-DEBUG_CFLAGS     := -Werror -Wall -std=c99 -Wdeclaration-after-statement -Wpointer-arith
+DEBUG_CFLAGS     := -std=c99 -pedantic -Wall -Werror -Wdeclaration-after-statement
 
 RELEASE_CFLAGS   := $(DEBUG_CFLAGS)
 
@@ -111,14 +111,22 @@ VX_HASH := vx_hash
 VX_HASH_OBJS := vx_hash.o
 VX_HASH_OBJS := $(addprefix $(OBJDIR)/, $(VX_HASH_OBJS))
 
+VX_SOCKET := vx_socket
+VX_SOCKET_OBJS := vx_socket.o
+VX_SOCKET_OBJS := $(addprefix $(OBJDIR)/, $(VX_SOCKET_OBJS))
+
 #
 # The build rule
 #
-all: $(VX_HASH)
+all: $(VX_HASH) $(VX_SOCKET)
 
 $(VX_HASH): $(VX_HASH_OBJS)  
 	@echo "[LD]  $@"
 	$(LD) $(VX_HASH_OBJS) -o $@ $(LDFLAGS) $(LIBS)
+
+$(VX_SOCKET): $(VX_SOCKET_OBJS)  
+	@echo "[LD]  $@"
+	$(LD) $(VX_SOCKET_OBJS) -o $@ $(LDFLAGS) $(LIBS)
 
 #
 # Include auto-generated dependencies
@@ -130,7 +138,7 @@ $(VX_HASH): $(VX_HASH_OBJS)
 #
 clean:
 	$(RM) $(OBJECTS) $(DEPENDS)
-	$(RM) $(VX_HASH)
+	$(RM) $(VX_HASH) $(VX_SOCKET)
 	$(RM) -r docs/html docs/latex
 
 #

@@ -4,10 +4,6 @@
 
 #include <vx_hash.h>
 
-typedef uint32_t (*vx_hash_func_t) (const void * key, size_t key_size);
-typedef void (*vx_hash_free_func_t) (void * value);
-typedef int (*vx_hash_cmp_func_t) (const void * foo, const void * bar, size_t key_size);
-
 typedef struct vx_node
 {
    void *key;
@@ -23,6 +19,7 @@ struct vx_hash
    size_t key_size;
    size_t size;
    size_t count;
+   int flags;
    vx_node_t **bins;
    vx_node_t *sentry;
    vx_hash_func_t hash_func;
@@ -30,13 +27,14 @@ struct vx_hash
    vx_hash_free_func_t free_func;
 };
 
-vx_hash_t * vx_hash_new (size_t size, size_t key_size)
+vx_hash_t * vx_hash_create (size_t size, size_t key_size, int flags)
 {
    vx_hash_t *hash;
    hash = calloc (1, sizeof(vx_hash_t));
    assert (hash != NULL);
-   hash->key_size = key_size;
    hash->size = hash_size(size);
+   hash->key_size = key_size;
+   hash->flags = flags;
    hash->bins = calloc (hash->size, sizeof(vx_node_t *));
    assert (hash->bins != NULL);
    hash->sentry = calloc (1, sizeof(vx_node_t));
@@ -46,6 +44,21 @@ vx_hash_t * vx_hash_new (size_t size, size_t key_size)
    hash->hash_func = vx_hash_func;
    hash->cmp_func = vx_hash_cmp_func;
    return (hash);
+}
+
+vx_hash_t *vx_hash_new (void)
+{
+   return (vx_hash_create (16, 0, VX_HASH_COPY_KEYS));
+}
+
+void vx_hash_set_hash_func (vx_hash_t *hash, vx_hash_func_t hash_func)
+{
+   hash->hash_func = hash_func;
+}
+
+void vx_hash_set_free_func (vx_hash_t *hash, vx_hash_free_func_t free_func)
+{
+   hash->free_func = free_func;
 }
 
 void * vx_hash_put (vx_hash_t *hash, void *key, void *value)
@@ -63,7 +76,7 @@ void * vx_hash_put (vx_hash_t *hash, void *key, void *value)
    {
       if (hash->cmp_func (node->key, key, hash->key_size))
       {
-         if (hash->free_func)
+         if ((hash->flags & VX_HASH_FREE_VALUE) && hash->free_func)
             hash->free_func (node->value);
          node->value = value;
          return (value);
@@ -71,8 +84,14 @@ void * vx_hash_put (vx_hash_t *hash, void *key, void *value)
    }
 
    node = (vx_node_t *) calloc (1, sizeof(vx_node_t));
+
    node->hashval = hash_value;
-   node->key = vx_hash_key_dup (hash, key);
+
+   if (hash->flags & VX_HASH_COPY_KEYS)
+      node->key = vx_hash_key_dup (hash, key);
+   else
+      node->key = key;
+   
    node->value = value;
 
    if (hash->bins[bindex] != NULL)
@@ -89,9 +108,6 @@ void * vx_hash_put (vx_hash_t *hash, void *key, void *value)
 
    hash->count++;
 
-   //printf ("created node: %p  bin = %d key (%p) -> %s value (%p) -> %s\n", 
-   //   node, bindex, node->key, (char *)node->key, node->value, (char *)node->value);
-   
    return (value);
 }
 
@@ -109,13 +125,8 @@ void * vx_hash_get (vx_hash_t *hash, void *key)
 
    for (node = hash->bins[bindex]; node ; node = node->link)
    {
-      //printf ("checking node %p bin %d key %s node (key (%p) -> %s, value (%p) -> %s)\n", 
-      //   node, bindex, (char *)key, node->key, (char *)node->key, node->value, (char *)node->value);
       if (hash->cmp_func (node->key, key, hash->key_size))
-      {
-         //printf ("found it\n");
          return (node->value);
-      }
    }
    return (NULL);
 }
@@ -141,12 +152,14 @@ void * vx_hash_delete (vx_hash_t *hash, void *key)
          if (prev)
             prev->link = node->link;
          else
-            hash->bins[bindex] = node->link;
+            //hash->bins[bindex] = node->link;
+            hash->bins[bindex] = NULL;
 
          node->prev->next = node->next;
          node->next->prev = node->prev;
    
-         free (node->key);
+         if (hash->flags & VX_HASH_COPY_KEYS)
+            free (node->key);
          free (node);
          hash->count--;
          return (value);
@@ -280,10 +293,11 @@ int main (int argc, char *argv[])
    vx_hash_t *hash;
    void *ptr;
    char *k, *v;
+   uint32_t ikey, ik;
 
-   hash = vx_hash_new(3, 0);
-   printf ("hash count: %d size: %d\n", vx_hash_count(hash), hash->size);
-   for (ndx = 0; ndx < 32; ndx++)
+   hash = vx_hash_new();
+   printf ("hash count: %d size: %d\n", vx_hash_count(hash), vx_hash_size(hash));
+   for (ndx = 0; ndx < 256; ndx++)
    {
       sprintf (key, "key%03d", ndx);
       sprintf (bar, "value%03d", ndx);
@@ -292,13 +306,13 @@ int main (int argc, char *argv[])
       printf ("vx_hash_put: %s -> %s\n", key, foo); 
    }
    printf ("hash count: %d\n", vx_hash_count(hash));
-   for (ndx = 0; ndx < 32; ndx++)
+   for (ndx = 0; ndx < 256; ndx++)
    {
       sprintf (key, "key%03d", ndx);
       foo = (char *) vx_hash_get (hash, key);
       printf ("vx_hash_get: %s -> %s\n", key, foo); 
    }
-   printf ("hash count: %d\n", vx_hash_count(hash));
+   printf ("hash count: %d size: %d\n", vx_hash_count(hash), vx_hash_size(hash));
    
    ptr = NULL;
    while (vx_hash_get_next(hash, (void **) &k, (void **) &v, &ptr))
@@ -306,16 +320,49 @@ int main (int argc, char *argv[])
       printf ("vx_hash_get_next: %s -> %s\n", k, v); 
    }
 
-   for (ndx = 0; ndx < 32; ndx++)
+   for (ndx = 0; ndx < 256; ndx++)
    {
       sprintf (key, "key%03d", ndx);
       foo = (char *) vx_hash_delete (hash, key);
       printf ("vx_hash_delete: deleted %s -> %s\n", key, foo); 
       free (foo);
    }
-   printf ("hash count: %d\n", vx_hash_count(hash));
+   printf ("hash count: %d size: %d\n", vx_hash_count(hash), vx_hash_size(hash));
 
    vx_hash_destroy (hash);
+
+   hash = vx_hash_create (16, sizeof(uint32_t), VX_HASH_COPY_KEYS);
+
+   for (ikey = 0; ikey < 256; ikey++)
+   {
+      sprintf (bar, "value%03d", ndx);
+      foo = strdup (bar);
+      vx_hash_put (hash, &ikey, foo);
+      printf ("vx_hash_put(uint32_t): %d -> %s\n", ikey, foo); 
+   }
+   printf ("hash count: %d size: %d\n", vx_hash_count(hash), vx_hash_size(hash));
+
+   for (ikey = 0; ikey < 256; ikey++)
+   {
+      foo = (char *) vx_hash_get (hash, &ikey);
+      printf ("vx_hash_get(uint32_t): %d -> %s\n", ikey, foo); 
+   }
+   printf ("hash count: %d size: %d\n", vx_hash_count(hash), vx_hash_size(hash));
+   
+   ptr = NULL;
+   while (vx_hash_get_next(hash, (void **) &ik, (void **) &v, &ptr))
+   {
+      printf ("vx_hash_get_next(uint32_t): %d -> %s\n", ik, v); 
+   }
+
+   for (ikey = 0; ikey < 256; ikey++)
+   {
+      foo = (char *) vx_hash_delete (hash, &ikey);
+      printf ("vx_hash_delete(uint32_t): deleted %d -> %s\n", ikey, foo); 
+      free (foo);
+   }
+   printf ("hash count: %d size: %d\n", vx_hash_count(hash), vx_hash_size(hash));
+   vx_hash_destroy(hash);
 
    return(0);
 }
